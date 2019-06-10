@@ -32,25 +32,27 @@ TableLoop:
 
 		}
 
-		if t.TargetMatchAllRegexp != nil {
-			for j := 0; j < len(targets); j++ {
-				if !t.TargetMatchAllRegexp.MatchString(targets[j]) {
+		if len(targets) > 0 {
+			if t.TargetMatchAllRegexp != nil {
+				for j := 0; j < len(targets); j++ {
+					if !t.TargetMatchAllRegexp.MatchString(targets[j]) {
+						continue TableLoop
+					}
+				}
+			}
+
+			if t.TargetMatchAnyRegexp != nil {
+				matched := false
+			TargetsLoop:
+				for j := 0; j < len(targets); j++ {
+					if t.TargetMatchAnyRegexp.MatchString(targets[j]) {
+						matched = true
+						break TargetsLoop
+					}
+				}
+				if !matched {
 					continue TableLoop
 				}
-			}
-		}
-
-		if t.TargetMatchAnyRegexp != nil {
-			matched := false
-		TargetsLoop:
-			for j := 0; j < len(targets); j++ {
-				if t.TargetMatchAnyRegexp.MatchString(targets[j]) {
-					matched = true
-					break TargetsLoop
-				}
-			}
-			if !matched {
-				continue TableLoop
 			}
 		}
 

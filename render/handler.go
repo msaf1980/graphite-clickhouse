@@ -113,6 +113,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	aliases := make(map[string][]string)
 	targets := make([]string, 0)
 
+	var query string
 	for t := 0; t < len(r.Form["target"]); t++ {
 		target := r.Form["target"][t]
 		if len(target) == 0 {
@@ -148,6 +149,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pointsTable, isReverse, rollupObj := SelectDataTable(h.config, fromTimestamp, untilTimestamp, targets)
+	largeFind := h.config.ClickHouse.WhereSubquery <= len(aliases)
 
 	var maxStep uint32
 	listBuf := bytes.NewBuffer(nil)
@@ -197,16 +199,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 
 	where := finder.NewWhere()
-	if count > 1 {
-		where.Andf("Path in (%s)", listBuf.String())
+	if isReverse || !largeFind {
+		if count > 1 {
+			where.Andf("Path in (%s)", listBuf.String())
+		} else {
+			where.Andf("Path = %s", listBuf.String())
+		}
 	} else {
-		where.Andf("Path = %s", listBuf.String())
+
 	}
 
 	until := untilTimestamp - untilTimestamp%int64(maxStep) + int64(maxStep) - 1
 	where.Andf("Time >= %d AND Time <= %d", fromTimestamp, until)
 
-	query := fmt.Sprintf(
+	query = fmt.Sprintf(
 		`
 		SELECT
 			Path, Time, Value, Timestamp
@@ -219,7 +225,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		preWhere.String(),
 		where.String(),
 	)
-
 	// start carbonlink request
 	carbonlinkResponseRead := h.queryCarbonlink(r.Context(), logger, metricList)
 
@@ -262,6 +267,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// pp.Println(points)
 	h.Reply(w, r, data, uint32(fromTimestamp), uint32(untilTimestamp), prefix, rollupObj)
+
 }
 
 func (h *Handler) Reply(w http.ResponseWriter, r *http.Request, data *Data, from, until uint32, prefix string, rollupObj *rollup.Rules) {

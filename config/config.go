@@ -68,6 +68,7 @@ type ClickHouse struct {
 	ExtraPrefix          string         `toml:"extra-prefix" json:"extra-prefix"`
 	ConnectTimeout       *Duration      `toml:"connect-timeout" json:"connect-timeout"`
 	Rollup               *rollup.Rollup `toml:"-" json:"rollup-conf"`
+	WhereSubquery        int            `toml:"wheresubquery" json:"wheresubquery"`
 }
 
 type Tags struct {
@@ -144,6 +145,7 @@ func New() *Config {
 			TagTable:             "",
 			TaggedAutocompleDays: 7,
 			ConnectTimeout:       &Duration{Duration: time.Second},
+			WhereSubquery:        500,
 		},
 		Tags: Tags{
 			Date:  "2016-11-01",
