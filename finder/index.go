@@ -70,7 +70,7 @@ func (idx *IndexFinder) where(query string, levelOffset int) *Where {
 	return w
 }
 
-func (idx *IndexFinder) Execute(ctx context.Context, query string, from int64, until int64) (err error) {
+func (idx *IndexFinder) Query(query string, from int64, until int64) (string, error) {
 	p := strings.LastIndexByte(query, '.')
 
 	if p < 0 || p >= len(query)-1 || HasWildcard(query[p+1:]) {
@@ -113,11 +113,16 @@ func (idx *IndexFinder) Execute(ctx context.Context, query string, from int64, u
 	} else {
 		where.Andf("Date = '%s'", DefaultTreeDate)
 	}
+	return fmt.Sprintf("SELECT Path FROM %s WHERE %s GROUP BY Path", idx.table, where.String()),
+		nil
+}
 
+func (idx *IndexFinder) Execute(ctx context.Context, query string, from int64, until int64) (err error) {
+	q, _ := idx.Query(query, from, until)
 	idx.body, err = clickhouse.Query(
 		ctx,
 		idx.url,
-		fmt.Sprintf("SELECT Path FROM %s WHERE %s GROUP BY Path", idx.table, where),
+		q,
 		idx.table,
 		idx.opts,
 	)

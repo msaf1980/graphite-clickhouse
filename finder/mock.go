@@ -15,8 +15,13 @@ func NewMockFinder(result [][]byte) *MockFinder {
 	}
 }
 
-func (m *MockFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+func (m *MockFinder) Query(query string, from int64, until int64) (string, error) {
 	m.query = query
+	return m.query, nil
+}
+
+func (m *MockFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+	m.Query(query, from, until)
 	return nil
 }
 

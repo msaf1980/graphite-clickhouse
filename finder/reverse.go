@@ -47,18 +47,28 @@ func WrapReverse(f Finder, url string, table string, opts clickhouse.Options) *R
 	}
 }
 
-func (r *ReverseFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+func (r *ReverseFinder) finderSelect(query string) (Finder, string) {
 	p := strings.LastIndexByte(query, '.')
 	if p < 0 || p >= len(query)-1 {
-		return r.wrapped.Execute(ctx, query, from, until)
+		return r.wrapped, query
 	}
 
 	if HasWildcard(query[p+1:]) {
-		return r.wrapped.Execute(ctx, query, from, until)
+		return r.wrapped, query
 	}
 
 	r.isUsed = true
-	return r.baseFinder.Execute(ctx, ReverseString(query), from, until)
+	return r.baseFinder, ReverseString(query)
+}
+
+func (r *ReverseFinder) Query(query string, from int64, until int64) (string, error) {
+	fnd, q := r.finderSelect(query)
+	return fnd.Query(q, from, until)
+}
+
+func (r *ReverseFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+	fnd, q := r.finderSelect(query)
+	return fnd.Execute(ctx, q, from, until)
 }
 
 func (r *ReverseFinder) List() [][]byte {

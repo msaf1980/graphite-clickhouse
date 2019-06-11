@@ -59,13 +59,17 @@ func (b *BaseFinder) where(query string) *Where {
 	return w
 }
 
-func (b *BaseFinder) Execute(ctx context.Context, query string, from int64, until int64) (err error) {
-	where := b.where(query)
+func (b *BaseFinder) Query(query string, from int64, until int64) (string, error) {
+	return fmt.Sprintf("SELECT Path FROM %s WHERE %s GROUP BY Path", b.table, b.where(query).String()),
+		nil
+}
 
+func (b *BaseFinder) Execute(ctx context.Context, query string, from int64, until int64) (err error) {
+	q, _ := b.Query(query, from, until)
 	b.body, err = clickhouse.Query(
 		ctx,
 		b.url,
-		fmt.Sprintf("SELECT Path FROM %s WHERE %s GROUP BY Path", b.table, where),
+		q,
 		b.table,
 		b.opts,
 	)

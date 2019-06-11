@@ -224,10 +224,10 @@ func (t *TaggedFinder) makeWhere(query string) (string, string, error) {
 	return MakeTaggedWhere(conditions)
 }
 
-func (t *TaggedFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+func (t *TaggedFinder) Query(query string, from int64, until int64) (string, error) {
 	w, pw, err := t.makeWhere(query)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	dateWhere := NewWhere()
@@ -243,6 +243,14 @@ func (t *TaggedFinder) Execute(ctx context.Context, query string, from int64, un
 	}
 
 	sql := fmt.Sprintf("SELECT Path FROM %s %s WHERE (%s) AND (%s) GROUP BY Path", t.table, prewhere, dateWhere.String(), w)
+	return sql, nil
+}
+
+func (t *TaggedFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+	sql, err := t.Query(query, from, until)
+	if sql == "" || err != nil {
+		return err
+	}
 	t.body, err = clickhouse.Query(ctx, t.url, sql, t.table, t.opts)
 	return err
 }

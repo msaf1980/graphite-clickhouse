@@ -38,13 +38,13 @@ func WrapPrefix(f Finder, prefix string) *PrefixFinder {
 	}
 }
 
-func (p *PrefixFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+func (p *PrefixFinder) Query(query string, from int64, until int64) (string, error) {
 	qs := strings.Split(query, ".")
 
 	// check regexp
 	for _, queryPart := range qs {
 		if _, err := regexp.Compile(GlobToRegexp(queryPart)); err != nil {
-			return err
+			return "", err
 		}
 	}
 
@@ -54,10 +54,10 @@ func (p *PrefixFinder) Execute(ctx context.Context, query string, from int64, un
 	for i = 0; i < len(qs) && i < len(ps); i++ {
 		m, err := regexp.MatchString("^"+GlobToRegexp(qs[i])+"$", ps[i])
 		if err != nil {
-			return err
+			return "", err
 		}
 		if !m { // not matched
-			return nil
+			return "", nil
 		}
 	}
 
@@ -65,12 +65,21 @@ func (p *PrefixFinder) Execute(ctx context.Context, query string, from int64, un
 		// prefix matched, but not finished
 		p.part = strings.Join(ps[:len(qs)], ".") + "."
 		p.matched = PrefixPartialMathed
-		return nil
+		return "", nil
 	}
 
 	p.matched = PrefixMatched
 
-	return p.wrapped.Execute(ctx, strings.Join(qs[len(ps):], "."), from, until)
+	return p.wrapped.Query(strings.Join(qs[len(ps):], "."), from, until)
+}
+
+func (p *PrefixFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+	q, err := p.Query(query, from, until)
+	if q == "" || err != nil {
+		return err
+	}
+
+	return p.wrapped.Execute(ctx, query, from, until)
 }
 
 func (p *PrefixFinder) List() [][]byte {

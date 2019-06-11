@@ -17,65 +17,66 @@ type Result interface {
 
 type Finder interface {
 	Result
+	Query(query string, from int64, until int64) (string, error)
 	Execute(ctx context.Context, query string, from int64, until int64) error
 }
 
-func Find(config *config.Config, ctx context.Context, query string, from int64, until int64) (Result, error) {
+func InitFinder(config *config.Config, query string, from int64, until int64) Finder {
+	var f Finder
 	opts := clickhouse.Options{
 		Timeout:        config.ClickHouse.TreeTimeout.Value(),
 		ConnectTimeout: config.ClickHouse.ConnectTimeout.Value(),
 	}
 
-	fnd := func() Finder {
-		var f Finder
-
-		if config.ClickHouse.TaggedTable != "" && strings.HasPrefix(strings.TrimSpace(query), "seriesByTag") {
-			f = NewTagged(config.ClickHouse.Url, config.ClickHouse.TaggedTable, opts)
-
-			if len(config.Common.Blacklist) > 0 {
-				f = WrapBlacklist(f, config.Common.Blacklist)
-			}
-
-			return f
-		}
-
-		if config.ClickHouse.IndexTable != "" {
-			f = NewIndex(
-				config.ClickHouse.Url,
-				config.ClickHouse.IndexTable,
-				config.ClickHouse.IndexUseDaily,
-				clickhouse.Options{
-					Timeout:        config.ClickHouse.IndexTimeout.Value(),
-					ConnectTimeout: config.ClickHouse.ConnectTimeout.Value(),
-				},
-			)
-		} else {
-			if from > 0 && until > 0 && config.ClickHouse.DateTreeTable != "" {
-				f = NewDateFinder(config.ClickHouse.Url, config.ClickHouse.DateTreeTable, config.ClickHouse.DateTreeTableVersion, opts)
-			} else {
-				f = NewBase(config.ClickHouse.Url, config.ClickHouse.TreeTable, opts)
-			}
-
-			if config.ClickHouse.ReverseTreeTable != "" {
-				f = WrapReverse(f, config.ClickHouse.Url, config.ClickHouse.ReverseTreeTable, opts)
-			}
-		}
-
-		if config.ClickHouse.TagTable != "" {
-			f = WrapTag(f, config.ClickHouse.Url, config.ClickHouse.TagTable, opts)
-		}
-
-		if config.ClickHouse.ExtraPrefix != "" {
-			f = WrapPrefix(f, config.ClickHouse.ExtraPrefix)
-		}
+	if config.ClickHouse.TaggedTable != "" && strings.HasPrefix(strings.TrimSpace(query), "seriesByTag") {
+		f = NewTagged(config.ClickHouse.Url, config.ClickHouse.TaggedTable, opts)
 
 		if len(config.Common.Blacklist) > 0 {
 			f = WrapBlacklist(f, config.Common.Blacklist)
 		}
 
 		return f
+	}
 
-	}()
+	if config.ClickHouse.IndexTable != "" {
+		f = NewIndex(
+			config.ClickHouse.Url,
+			config.ClickHouse.IndexTable,
+			config.ClickHouse.IndexUseDaily,
+			clickhouse.Options{
+				Timeout:        config.ClickHouse.IndexTimeout.Value(),
+				ConnectTimeout: config.ClickHouse.ConnectTimeout.Value(),
+			},
+		)
+	} else {
+		if from > 0 && until > 0 && config.ClickHouse.DateTreeTable != "" {
+			f = NewDateFinder(config.ClickHouse.Url, config.ClickHouse.DateTreeTable, config.ClickHouse.DateTreeTableVersion, opts)
+		} else {
+			f = NewBase(config.ClickHouse.Url, config.ClickHouse.TreeTable, opts)
+		}
+
+		if config.ClickHouse.ReverseTreeTable != "" {
+			f = WrapReverse(f, config.ClickHouse.Url, config.ClickHouse.ReverseTreeTable, opts)
+		}
+	}
+
+	if config.ClickHouse.TagTable != "" {
+		f = WrapTag(f, config.ClickHouse.Url, config.ClickHouse.TagTable, opts)
+	}
+
+	if config.ClickHouse.ExtraPrefix != "" {
+		f = WrapPrefix(f, config.ClickHouse.ExtraPrefix)
+	}
+
+	if len(config.Common.Blacklist) > 0 {
+		f = WrapBlacklist(f, config.Common.Blacklist)
+	}
+
+	return f
+}
+
+func Find(config *config.Config, ctx context.Context, query string, from int64, until int64) (Result, error) {
+	fnd := InitFinder(config, query, from, until)
 
 	err := fnd.Execute(ctx, query, from, until)
 	if err != nil {

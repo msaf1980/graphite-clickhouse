@@ -197,31 +197,32 @@ func (t *TagFinder) MakeSQL(query string) (string, error) {
 	return t.seriesSQL()
 }
 
-func (t *TagFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+func (t *TagFinder) Query(query string, from int64, until int64) (string, error) {
 	t.state = TagSkip
 
 	if query == "" {
-		return t.wrapped.Execute(ctx, query, from, until)
+		return t.wrapped.Query(query, from, until)
 	}
 
 	if query == "*" {
 		t.state = TagRoot
-		return t.wrapped.Execute(ctx, query, from, until)
+		return t.wrapped.Query(query, from, until)
 	}
 
 	if !strings.HasPrefix(query, "_tag.") && query != "_tag" {
-		return t.wrapped.Execute(ctx, query, from, until)
+		return t.wrapped.Query(query, from, until)
 	}
 
-	sql, err := t.MakeSQL(query)
-	if err != nil {
+	return t.MakeSQL(query)
+}
+
+func (t *TagFinder) Execute(ctx context.Context, query string, from int64, until int64) error {
+	sql, err := t.Query(query, from, until)
+	if sql == "" || err != nil {
 		return err
 	}
 
-	if sql != "" {
-		t.body, err = clickhouse.Query(ctx, t.url, sql, t.table, t.opts)
-	}
-
+	t.body, err = clickhouse.Query(ctx, t.url, sql, t.table, t.opts)
 	return err
 }
 

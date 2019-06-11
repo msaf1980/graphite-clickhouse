@@ -27,7 +27,7 @@ func NewDateFinder(url string, table string, tableVersion int, opts clickhouse.O
 	return &DateFinder{b, tableVersion}
 }
 
-func (b *DateFinder) Execute(ctx context.Context, query string, from int64, until int64) (err error) {
+func (b *DateFinder) Query(query string, from int64, until int64) (string, error) {
 	where := b.where(query)
 
 	dateWhere := NewWhere()
@@ -38,24 +38,25 @@ func (b *DateFinder) Execute(ctx context.Context, query string, from int64, unti
 	)
 
 	if b.tableVersion == 2 {
-		b.body, err = clickhouse.Query(
-			ctx,
-			b.url,
-			fmt.Sprintf(
+		return fmt.Sprintf(
 				`SELECT Path FROM %s PREWHERE (%s) WHERE %s GROUP BY Path`,
 				b.table, dateWhere.String(), where.String()),
-			b.table,
-			b.opts,
-		)
+			nil
 	} else {
-		b.body, err = clickhouse.Query(
-			ctx,
-			b.url,
-			fmt.Sprintf(`SELECT DISTINCT Path FROM %s PREWHERE (%s) WHERE (%s)`, b.table, dateWhere.String(), where),
-			b.table,
-			b.opts,
-		)
+		return fmt.Sprintf(`SELECT DISTINCT Path FROM %s PREWHERE (%s) WHERE (%s)`,
+				b.table, dateWhere.String(), where.String()),
+			nil
 	}
+}
 
+func (b *DateFinder) Execute(ctx context.Context, query string, from int64, until int64) (err error) {
+	q, _ := b.Query(query, from, until)
+	b.body, err = clickhouse.Query(
+		ctx,
+		b.url,
+		q,
+		b.table,
+		b.opts,
+	)
 	return
 }
