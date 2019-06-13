@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lomik/graphite-clickhouse/helper/rollup"
@@ -20,6 +21,23 @@ import (
 
 	graphitePickle "github.com/lomik/graphite-pickle"
 )
+
+func ClickHouseError(w http.ResponseWriter, logger *zap.Logger, err error) {
+	if strings.HasPrefix(err.Error(), "clickhouse response status 500: Code:") &&
+		strings.Index(err.Error(), ": Limit for ") != -1 {
+		//logger.Info("limit", zap.Error(err))
+		http.Error(w, "Storage read limit", http.StatusForbidden)
+	} else if strings.HasSuffix(err.Error(), "connect: no route to host") ||
+		strings.HasSuffix(err.Error(), "connect: connection refused") ||
+		strings.HasSuffix(err.Error(), ": connection reset by peer") ||
+		strings.HasPrefix(err.Error(), "dial tcp: lookup") { // DNS lookup
+		//logger.Debug("query", zap.Error(err))
+		http.Error(w, "Storage error", http.StatusServiceUnavailable)
+	} else {
+		//logger.Debug("query", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
 
 type Handler struct {
 	config     *config.Config
@@ -123,7 +141,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Search in small index table first
 		fndResult, err := finder.Find(h.config, r.Context(), target, fromTimestamp, untilTimestamp)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			ClickHouseError(w, logger, err)
 			return
 		}
 
@@ -238,7 +256,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		ClickHouseError(w, logger, err)
 		return
 	}
 
@@ -251,7 +269,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := DataParse(body, carbonlinkData, isReverse)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Error("data", zap.Error(err))
+		ClickHouseError(w, logger, err)
 		return
 	}
 
