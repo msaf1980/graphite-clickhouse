@@ -163,6 +163,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Too much metric: %d", len(aliases)), http.StatusForbidden)
 		return
 	}
+	logger.Info("finder", zap.Int("metrics", len(aliases)))
 
 	metricList := make([][]byte, len(aliases))
 	index := 0
@@ -269,10 +270,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := DataParse(body, carbonlinkData, isReverse)
 
 	if err != nil {
-		logger.Error("data", zap.Error(err))
+		logger.Error("data", zap.Error(err), zap.Int("read_bytes", data.length))
 		ClickHouseError(w, logger, err)
 		return
 	}
+	logger.Info("render", zap.Int("read_bytes", data.length), zap.Int("read_points", data.Points.Len()))
 
 	d := time.Since(parseStart)
 	logger.Debug("parse", zap.String("runtime", d.String()), zap.Duration("runtime_ns", d))
