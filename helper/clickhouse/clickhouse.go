@@ -36,6 +36,27 @@ type loggedReader struct {
 	finished bool
 }
 
+func HandleError(w http.ResponseWriter, err error) {
+	_, ok := err.(net.Error)
+	if ok {
+		if strings.HasSuffix(err.Error(), "connect: no route to host") ||
+			strings.HasSuffix(err.Error(), "connect: connection refused") ||
+			strings.HasSuffix(err.Error(), ": connection reset by peer") ||
+			strings.HasPrefix(err.Error(), "dial tcp: lookup ") { // DNS lookup
+			http.Error(w, "Storage error", http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	} else if strings.HasPrefix(err.Error(), "clickhouse response status 500: Code:") &&
+		strings.Index(err.Error(), ": Limit for ") != -1 {
+		//logger.Info("limit", zap.Error(err))
+		http.Error(w, "Storage read limit", http.StatusBadRequest)
+	} else {
+		//logger.Debug("query", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func (r *loggedReader) Read(p []byte) (int, error) {
 	n, err := r.reader.Read(p)
 	if err != nil && !r.finished {
