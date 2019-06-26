@@ -147,6 +147,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		index++
 	}
 
+	logger.Info("finder", zap.Int("metrics", len(aliases)))
+
 	pointsTable, isReverse, rollupObj := SelectDataTable(h.config, fromTimestamp, untilTimestamp, targets)
 	if pointsTable == "" {
 		logger.Error("data tables is not specified", zap.Error(err))
@@ -248,11 +250,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// pass carbonlinkData to DataParse
 	data, err := DataParse(body, carbonlinkData, isReverse)
-
 	if err != nil {
+		logger.Error("data", zap.Error(err), zap.Int("read_bytes", data.length))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	logger.Info("render", zap.Int("read_bytes", data.length), zap.Int("read_points", data.Points.Len()))
 
 	d := time.Since(parseStart)
 	logger.Debug("parse", zap.String("runtime", d.String()), zap.Duration("runtime_ns", d))
