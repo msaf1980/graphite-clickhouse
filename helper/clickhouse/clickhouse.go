@@ -37,9 +37,11 @@ type loggedReader struct {
 }
 
 func HandleError(w http.ResponseWriter, err error) {
-	_, ok := err.(net.Error)
+	netErr, ok := err.(net.Error)
 	if ok {
-		if strings.HasSuffix(err.Error(), "connect: no route to host") ||
+		if netErr.Timeout() {
+			http.Error(w, "Storage read timeout", http.StatusGatewayTimeout)
+		} else if strings.HasSuffix(err.Error(), "connect: no route to host") ||
 			strings.HasSuffix(err.Error(), "connect: connection refused") ||
 			strings.HasSuffix(err.Error(), ": connection reset by peer") ||
 			strings.HasPrefix(err.Error(), "dial tcp: lookup ") { // DNS lookup
