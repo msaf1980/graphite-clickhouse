@@ -145,7 +145,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if h.config.Common.MaxMetricsInRenderAnswer > 0 && h.config.Common.MaxMetricsInRenderAnswer < len(aliases) {
+	if len(aliases) == 0 { // no metric names finded
+		logger.Info("finder", zap.Int("metrics", 0))
+		http.Error(w, "metrics not found", http.StatusNotFound)
+		return
+	} else if h.config.Common.MaxMetricsInRenderAnswer > 0 && h.config.Common.MaxMetricsInRenderAnswer < len(aliases) {
 		logger.Info("limit", zap.Int("metric_render", len(aliases)))
 		http.Error(w, fmt.Sprintf("Too much metric: %d", len(aliases)), http.StatusForbidden)
 		return
