@@ -88,6 +88,15 @@ rollup-conf = "/etc/graphite-clickhouse/rollup.xml"
 index-table = "graphite_index"
 # Use daily data from index table. This is useful for installations with big count of short-lived series but can be slower in other cases
 index-use-daily = true
+# Allow use reverse queries with minimal depth (-1 - disable, 0 - disable if no wildcard at first level, 1 - allow for example a.b.c*.d and a.b*.c.d queries, 2 - allow a.b*.c.d) to index table. This is useful when reverse queries has bad perfomance
+index-use-reverse = 1
+# overwrite default index-use-reverse for metrics with postfix (not used when index-use-reverse = -1)
+#index-reverse-suffix = [
+#    { name = ".p99", reverse = 2 },
+#    { name = ".avg", reverse = 2 },
+#    { name = ".gc.gen1", reverse = 0 }
+#]
+index-reverse-postfix = []
 index-timeout = "1m"
 
 # `tagged` table from carbon-clickhouse. Required for seriesByTag
