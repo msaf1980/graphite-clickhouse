@@ -19,6 +19,11 @@ all: $(NAME)
 $(NAME):
 	$(GO) build $(MODULE)
 
+debug: $(NAME)-debug
+
+$(NAME)-debug:
+	$(GO) build -gcflags=all='-N -l' $(MODULE)
+
 test:
 	$(GO) test $(MODULE)/helper/clickhouse
 	$(GO) test $(MODULE)/helper/pickle
