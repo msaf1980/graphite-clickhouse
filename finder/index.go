@@ -69,13 +69,17 @@ func useReverse(query string) bool {
 	return true
 }
 
-func reverseSuffixDepth(query string, reverseDepth int, revSuffix []config.NValue) int {
+func reverseSuffixDepth(query string, defaultReverseDepth int, revSuffix []config.NValue) int {
 	for i := range revSuffix {
-		if strings.HasSuffix(query, revSuffix[i].Name) {
-			return revSuffix[i].Value
+		if len(revSuffix[i].Prefix) > 0 && !strings.HasPrefix(query, revSuffix[i].Prefix) {
+			continue
 		}
+		if len(revSuffix[i].Suffix) > 0 && !strings.HasSuffix(query, revSuffix[i].Suffix) {
+			continue
+		}
+		return revSuffix[i].Value
 	}
-	return reverseDepth
+	return defaultReverseDepth
 }
 
 func useReverseDepth(query string, reverseDepth int, revSuffix []config.NValue) bool {
