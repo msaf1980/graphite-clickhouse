@@ -108,7 +108,7 @@ func useReverseDepth(query string, reverseDepth int, revSuffix []config.NValue) 
 	depth := 0
 
 	for {
-		e := strings.LastIndexByte(query[w+1:p], '.')
+		e := strings.LastIndexByte(query[w:p], '.')
 		if e < 0 {
 			break
 		} else if e < len(query)-1 {

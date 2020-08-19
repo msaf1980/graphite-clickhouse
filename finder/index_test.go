@@ -45,6 +45,7 @@ func Test_useReverseDepth(t *testing.T) {
 		{"a.b*.c.d*.e", 2, false},
 		{"a.*.c.*.e.*.j", 2, false},
 		{"a.*.c.*.e.*.j", 1, true},
+		{"a.b*.c.*d.e", 2, false},
 	}
 
 	for _, tt := range table {
