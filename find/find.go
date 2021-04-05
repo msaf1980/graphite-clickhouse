@@ -11,6 +11,7 @@ import (
 	"github.com/lomik/graphite-clickhouse/config"
 	"github.com/lomik/graphite-clickhouse/finder"
 	"github.com/lomik/graphite-clickhouse/helper/pickle"
+	"github.com/lomik/graphite-clickhouse/pkg/where"
 )
 
 type Find struct {
@@ -21,6 +22,7 @@ type Find struct {
 }
 
 func New(config *config.Config, ctx context.Context, query string) (*Find, error) {
+	query = where.ClearGlob(query)
 	res, err := finder.Find(config, ctx, query, 0, 0)
 	if err != nil {
 		return nil, err
