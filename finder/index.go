@@ -71,6 +71,9 @@ func useReverse(query string) bool {
 
 func reverseSuffixDepth(query string, defaultReverseDepth int, revUse []config.NValue) int {
 	for i := range revUse {
+		if len(revUse[i].Prefix) == 0 && len(revUse[i].Suffix) == 0 {
+			continue
+		}
 		if len(revUse[i].Prefix) > 0 && !strings.HasPrefix(query, revUse[i].Prefix) {
 			continue
 		}
