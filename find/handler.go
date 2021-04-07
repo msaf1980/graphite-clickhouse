@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	v3pb "github.com/lomik/graphite-clickhouse/carbonapi_v3_pb"
 	"github.com/lomik/graphite-clickhouse/config"
@@ -57,7 +58,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Query not set", http.StatusBadRequest)
 		return
 	}
-	f, err := New(h.config, r.Context(), query)
+	var from int64
+	var until int64
+	if h.config.ClickHouse.IndexAutocompleDays > 0 {
+		until = time.Now().Unix()
+		from = until - int64(h.config.ClickHouse.IndexAutocompleDays*3600*24)
+	}
+	f, err := New(h.config, r.Context(), query, from, until, true)
 	if err != nil {
 		clickhouse.HandleError(w, err)
 		return

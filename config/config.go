@@ -94,6 +94,7 @@ type ClickHouse struct {
 	IndexTable           string    `toml:"index-table" json:"index-table"`
 	IndexUseDaily        bool      `toml:"index-use-daily" json:"index-use-daily"`
 	IndexTimeout         *Duration `toml:"index-timeout" json:"index-timeout"`
+	IndexAutocompleDays  int       `toml:"index-autocomplete-days" json:"index-autocomplete-days"`
 	TaggedTable          string    `toml:"tagged-table" json:"tagged-table"`
 	TaggedAutocompleDays int       `toml:"tagged-autocomplete-days" json:"tagged-autocomplete-days"`
 	ReverseTreeTable     string    `toml:"reverse-tree-table" json:"reverse-tree-table"`

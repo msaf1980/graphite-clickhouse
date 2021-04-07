@@ -20,8 +20,8 @@ type Find struct {
 	result  finder.Result
 }
 
-func New(config *config.Config, ctx context.Context, query string) (*Find, error) {
-	res, err := finder.Find(config, ctx, query, 0, 0)
+func New(config *config.Config, ctx context.Context, query string, from, until int64, completer bool) (*Find, error) {
+	res, err := finder.Find(config, ctx, query, from, until, completer)
 	if err != nil {
 		return nil, err
 	}

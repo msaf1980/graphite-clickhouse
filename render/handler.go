@@ -137,7 +137,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			go func(tf TimeFrame, target string, am *alias.Map) {
 				defer wg.Done()
 				// Search in small index table first
-				fndResult, err := finder.Find(h.config, r.Context(), target, tf.From, tf.Until)
+				fndResult, err := finder.Find(h.config, r.Context(), target, tf.From, tf.Until, false)
 				if err != nil {
 					logger.Error("find", zap.Error(err))
 					lock.Lock()

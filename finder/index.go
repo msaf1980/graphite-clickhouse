@@ -26,14 +26,16 @@ type IndexFinder struct {
 	body         []byte // clickhouse response body
 	useReverse   bool
 	useDaily     bool
+	completer    bool
 }
 
-func NewIndex(url string, table string, dailyEnabled bool, opts clickhouse.Options) Finder {
+func NewIndex(url string, table string, dailyEnabled bool, opts clickhouse.Options, completer bool) Finder {
 	return &IndexFinder{
 		url:          url,
 		table:        table,
 		opts:         opts,
 		dailyEnabled: dailyEnabled,
+		completer:    completer,
 	}
 }
 
@@ -64,7 +66,7 @@ func (idx *IndexFinder) Execute(ctx context.Context, query string, from int64, u
 	}
 
 	var levelOffset int
-	if idx.useDaily {
+	if idx.useDaily && !idx.completer {
 		if idx.useReverse {
 			levelOffset = ReverseLevelOffset
 		}
