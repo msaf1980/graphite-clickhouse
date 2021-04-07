@@ -196,6 +196,21 @@ encoding-time = "iso8601"
 encoding-duration = "seconds"
 ```
 
+For completelly disable global index and switch to daily index, need support for metric uploader. For carbon-clickhouse use this settings
+```
+[upload.graphite_index]
+..
+level-daily-index = true
+disable-global-index = true
+```
+
+For graphite-clickhouse set index-autocomplete-days > 0
+```
+[clickhouse]
+..
+index-autocomplete-days = 1
+```
+
 ### Special headers processing
 
 Some HTTP headers are processed specially by the service
