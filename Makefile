@@ -10,7 +10,7 @@ TEMPDIR:=$(shell mktemp -d)
 
 DEVEL ?= 0
 ifeq ($(DEVEL), 0)
-VERSION:=$(shell sh -c 'grep "const Version" $(NAME).go  | cut -d\" -f2')
+VERSION:=$(shell sh -c 'grep "const Version" cmd/$(NAME)/$(NAME).go  | cut -d\" -f2')
 else
 VERSION:=$(shell sh -c 'git describe --always --tags | sed -e "s/^v//i"')
 endif
@@ -25,7 +25,10 @@ clean:
 
 .PHONY: $(NAME)
 $(NAME):
-	$(GO) build $(MODULE)
+	$(GO) build $(MODULE)/cmd/$(NAME)
+
+debug:
+	$(GO) build -gcflags=all='-N -l' $(MODULE)/cmd/$(NAME)
 
 test:
 	$(GO) test ./...
@@ -33,7 +36,7 @@ test:
 gox-build:
 	rm -rf out
 	mkdir -p out
-	gox -os="linux" -arch="amd64" -arch="arm64" -output="out/$(NAME)-{{.OS}}-{{.Arch}}"  github.com/lomik/$(NAME)
+	gox -os="linux" -arch="amd64" -arch="arm64" -output="out/$(NAME)-{{.OS}}-{{.Arch}}"  $(MODULE)/cmd/$(NAME)
 	ls -la out/
 	mkdir -p out/root/etc/$(NAME)/
 	./out/$(NAME)-linux-amd64 -config-print-default > out/root/etc/$(NAME)/$(NAME).conf

@@ -5,7 +5,7 @@ COPY . .
 
 ENV GOPATH=/go
 
-RUN go build -ldflags '-extldflags "-static"' github.com/lomik/graphite-clickhouse
+RUN go build -ldflags '-extldflags "-static"' github.com/lomik/graphite-clickhouse/cmd/graphite-clickhouse
 
 FROM alpine:latest
 
