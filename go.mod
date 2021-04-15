@@ -12,6 +12,7 @@ require (
 	github.com/lomik/og-rek v0.0.0-20170411191824-628eefeb8d80 // indirect
 	github.com/lomik/stop v0.0.0-20161127103810-188e98d969bd // indirect
 	github.com/lomik/zapwriter v0.0.0-20180906104450-2ec2b9a61680
+	github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/common v0.4.1
 	github.com/prometheus/prometheus v1.8.2-0.20190814100549-343d8d75fd76
@@ -27,4 +28,5 @@ require (
 	golang.org/x/sys v0.0.0-20190403152447-81d4e9dc473e // indirect; prometheus
 	golang.org/x/tools v0.0.0-20190312170243-e65039ee4138 // indirect; prometheus
 	golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7 // indirect; prometheus
+	gopkg.in/yaml.v2 v2.2.2
 )

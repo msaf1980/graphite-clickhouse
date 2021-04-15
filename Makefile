@@ -26,9 +26,11 @@ clean:
 .PHONY: $(NAME)
 $(NAME):
 	$(GO) build $(MODULE)/cmd/$(NAME)
+	$(GO) build $(MODULE)/cmd/test-wrapper
 
 debug:
 	$(GO) build -gcflags=all='-N -l' $(MODULE)/cmd/$(NAME)
+	$(GO) build -gcflags=all='-N -l' $(MODULE)/cmd/test-wrapper
 
 test:
 	$(GO) test ./...
