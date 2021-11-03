@@ -56,12 +56,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) requestExpr(r *http.Request) (*where.Where, *where.Where, map[string]bool, error) {
+	// query example /tags/autoComplete/values?expr=host=~.*&expr=hosts_group=~.*&tag=team
+	tags := r.Form["tag"]
 	f := r.Form["expr"]
-	expr := make([]string, 0)
+	length := len(f)
+	if len(tags) == 1 {
+		length++
+	}
+	expr := make([]string, 0, length)
 	for i := 0; i < len(f); i++ {
 		if f[i] != "" {
 			expr = append(expr, f[i])
 		}
+	}
+	if len(tags) == 1 {
+		expr = append(expr, tags[0]+"=*")
 	}
 
 	usedTags := make(map[string]bool)
