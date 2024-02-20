@@ -1,4 +1,4 @@
-package render
+package finder
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/lomik/graphite-clickhouse/config"
 )
 
-func Test_getCacheTimeout(t *testing.T) {
+func Test_GetCacheTimeout(t *testing.T) {
 	cacheConfig := config.CacheConfig{
 		ShortTimeoutSec:     60,
 		ShortTimeoutStr:     "60",
@@ -79,7 +79,7 @@ func Test_getCacheTimeout(t *testing.T) {
 	}
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("[%d] %s", i, tt.name), func(t *testing.T) {
-			got, gotStr, _ := getCacheTimeout(tt.now, tt.from, tt.until, &cacheConfig)
+			got, gotStr, _ := GetCacheTimeout(tt.now, tt.from, tt.until, &cacheConfig)
 			if got != tt.want {
 				t.Errorf("getCacheTimeout() = %v, want %v", got, tt.want)
 			}
