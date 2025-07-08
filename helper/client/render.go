@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	protov2 "github.com/go-graphite/protocol/carbonapi_v2_pb"
 	protov3 "github.com/go-graphite/protocol/carbonapi_v3_pb"
@@ -37,55 +38,59 @@ type Metric struct {
 	RequestStopTime         int64     `toml:"req_stop"`
 }
 
-// Render do /metrics/find/ request
+// Render do /render request
 // Valid formats are carbonapi_v3_pb. protobuf, pickle, json
-func Render(client *http.Client, address string, format FormatType, targets []string, filteringFunctions []*protov3.FilteringFunction, maxDataPoints, from, until int64) (string, []Metric, http.Header, error) {
+type Render struct {
+	queryParams string
+	format      FormatType
+	u           *url.URL
+	body        []byte
+}
+
+func NewRender(address string, format FormatType, targets []string, filteringFunctions []*protov3.FilteringFunction, maxDataPoints, from, until int64) (r Render, err error) {
 	rUrl := "/render/"
 
 	if format == FormatDefault {
 		format = FormatPb_v3
 	}
 
-	queryParams := fmt.Sprintf("%s?format=%s, from=%d, until=%d, targets [%s]", rUrl, format.String(), from, until, strings.Join(targets, ","))
-	if len(targets) == 0 {
-		return queryParams, nil, nil, nil
-	}
+	r.format = format
+
+	r.queryParams = fmt.Sprintf("%s?format=%s, from=%d, until=%d, targets [%s]", rUrl, format.String(), from, until, strings.Join(targets, ","))
 
 	if from <= 0 {
-		return queryParams, nil, nil, ErrInvalidFrom
+		err = ErrInvalidFrom
+		return
 	}
 
 	if until <= 0 {
-		return queryParams, nil, nil, ErrInvalidUntil
+		err = ErrInvalidUntil
+		return
 	}
 
 	fromStr := strconv.FormatInt(from, 10)
 	untilStr := strconv.FormatInt(until, 10)
 	maxDataPointsStr := strconv.FormatInt(maxDataPoints, 10)
 
-	u, err := url.Parse(address + rUrl)
+	r.u, err = url.Parse(address + rUrl)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return
 	}
 
 	var v url.Values
-
-	var reader io.Reader
 
 	switch format {
 	case FormatPb_v3:
 		v = url.Values{
 			"format": []string{format.String()},
 		}
-		u.RawQuery = v.Encode()
+		r.u.RawQuery = v.Encode()
 
-		var body []byte
-
-		r := protov3.MultiFetchRequest{
+		req := protov3.MultiFetchRequest{
 			Metrics: make([]protov3.FetchRequest, len(targets)),
 		}
 		for i, target := range targets {
-			r.Metrics[i] = protov3.FetchRequest{
+			req.Metrics[i] = protov3.FetchRequest{
 				Name:            target,
 				StartTime:       from,
 				StopTime:        until,
@@ -95,14 +100,11 @@ func Render(client *http.Client, address string, format FormatType, targets []st
 			}
 		}
 
-		body, err = r.Marshal()
+		r.body, err = req.Marshal()
 		if err != nil {
-			return queryParams, nil, nil, err
+			return
 		}
 
-		if body != nil {
-			reader = bytes.NewReader(body)
-		}
 	case FormatPb_v2, FormatProtobuf, FormatPickle, FormatJSON:
 		v := url.Values{
 			"format":        []string{format.String()},
@@ -111,40 +113,69 @@ func Render(client *http.Client, address string, format FormatType, targets []st
 			"target":        targets,
 			"maxDataPoints": []string{maxDataPointsStr},
 		}
-		u.RawQuery = v.Encode()
+		r.u.RawQuery = v.Encode()
 	default:
-		return queryParams, nil, nil, ErrUnsupportedFormat
+		err = ErrUnsupportedFormat
+		return
 	}
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), reader)
+	return
+}
+
+func (r *Render) QueryParams() string {
+	return r.queryParams
+}
+
+func (r *Render) Query(client *http.Client) ([]Metric, time.Duration, http.Header, error) {
+	var duration time.Duration
+	var reader io.Reader
+
+	if r.body != nil {
+		reader = bytes.NewReader(r.body)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, r.u.String(), reader)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
+	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		return queryParams, nil, nil, err
+		duration = time.Since(start)
+		return nil, duration, nil, err
 	}
 
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
+	duration = time.Since(start)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		return queryParams, nil, resp.Header, nil
+		return nil, duration, resp.Header, nil
 	} else if resp.StatusCode != http.StatusOK {
-		return queryParams, nil, resp.Header, NewHttpError(resp.StatusCode, string(b))
+		return nil, duration, resp.Header, NewHttpError(resp.StatusCode, string(b))
 	}
 
-	metrics, err := Decode(b, format)
+	metrics, err := Decode(b, r.format)
 	if err != nil {
-		return queryParams, nil, resp.Header, err
+		return nil, duration, resp.Header, err
 	}
 
-	return queryParams, metrics, resp.Header, nil
+	return metrics, duration, resp.Header, nil
+}
+
+func QueryRender(client *http.Client, address string, format FormatType, targets []string, filteringFunctions []*protov3.FilteringFunction, maxDataPoints, from, until int64) (string, []Metric, time.Duration, http.Header, error) {
+	renderQuery, err := NewRender(address, format, targets, filteringFunctions, maxDataPoints, from, until)
+	if err != nil {
+		return renderQuery.QueryParams(), nil, 0, nil, err
+	} else {
+		r, duration, respHeader, err := renderQuery.Query(client)
+		return renderQuery.QueryParams(), r, duration, respHeader, err
+	}
 }
 
 // Decode converts data in the give format to a Metric

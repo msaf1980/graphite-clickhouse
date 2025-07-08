@@ -9,32 +9,38 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/msaf1980/go-stringutils"
 )
 
 // TagsNames do  /tags/autoComplete/tags request with query like [tagPrefix];tag1=value1;tag2=~value*
 // Valid formats are json
-func TagsNames(client *http.Client, address string, format FormatType, query string, limit uint64, from, until int64) (string, []string, http.Header, error) {
+type TagsNames struct {
+	queryParams string
+	format      FormatType
+	u           *url.URL
+	body        []byte
+}
+
+func NewTagsNames(address string, format FormatType, query string, limit uint64, from, until int64) (t TagsNames, err error) {
 	rTags := "/tags/autoComplete/tags"
 
 	if format == FormatDefault {
 		format = FormatJSON
 	}
 
-	var queryParams string
+	t.queryParams = fmt.Sprintf("%s?format=%s, from=%d, until=%d, limits=%d, query %s", rTags, format.String(), from, until, limit, query)
+	t.format = format
 
-	switch format {
-	case FormatJSON:
-		break
-	default:
-		queryParams = fmt.Sprintf("%s?format=%s, from=%d, until=%d, limits=%d, query %s", rTags, format.String(), from, until, limit, query)
-		return queryParams, nil, nil, ErrUnsupportedFormat
+	if format != FormatJSON {
+		err = ErrUnsupportedFormat
+		return
 	}
 
-	u, err := url.Parse(address + rTags)
+	t.u, err = url.Parse(address + rTags)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return
 	}
 
 	var tagPrefix string
@@ -44,7 +50,8 @@ func TagsNames(client *http.Client, address string, format FormatType, query str
 	if query != "" && query != "<>" {
 		args := strings.Split(query, ";")
 		if len(args) < 1 {
-			return queryParams, nil, nil, ErrInvalidQuery
+			err = ErrInvalidQuery
+			return
 		}
 
 		exprs = make([]string, 0, len(args))
@@ -54,7 +61,8 @@ func TagsNames(client *http.Client, address string, format FormatType, query str
 			if i == 0 && delim == -1 {
 				tagPrefix = arg
 			} else if delim <= 0 {
-				return queryParams, nil, nil, errors.New("invalid expr: " + arg)
+				err = errors.New("invalid expr: " + arg)
+				return
 			} else {
 				exprs = append(exprs, arg)
 			}
@@ -110,65 +118,92 @@ func TagsNames(client *http.Client, address string, format FormatType, query str
 		rawQuery.WriteString(limitStr)
 	}
 
-	queryParams = fmt.Sprintf("%s %q", rTags, v)
+	t.queryParams = fmt.Sprintf("%s %q", rTags, v)
 
-	u.RawQuery = rawQuery.String()
+	t.u.RawQuery = rawQuery.String()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	return
+}
+
+func (t *TagsNames) QueryParams() string {
+	return t.queryParams
+}
+
+func (t *TagsNames) Query(client *http.Client) ([]string, time.Duration, http.Header, error) {
+	var duration time.Duration
+	req, err := http.NewRequest(http.MethodGet, t.u.String(), nil)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
+	now := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		return queryParams, nil, nil, err
+		duration = time.Since(now)
+		return nil, duration, nil, err
 	}
 
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
+	duration = time.Since(now)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		return u.RawQuery, nil, resp.Header, nil
+		return nil, duration, resp.Header, nil
 	} else if resp.StatusCode != http.StatusOK {
-		return queryParams, nil, resp.Header, NewHttpError(resp.StatusCode, string(b))
+		return nil, duration, resp.Header, NewHttpError(resp.StatusCode, string(b))
 	}
 
 	var values []string
 
 	err = json.Unmarshal(b, &values)
 	if err != nil {
-		return queryParams, nil, resp.Header, errors.New(err.Error() + ": " + string(b))
+		return nil, duration, resp.Header, errors.New(err.Error() + ": " + string(b))
 	}
 
-	return queryParams, values, resp.Header, nil
+	return values, duration, resp.Header, nil
+}
+
+func QueryTagsNames(client *http.Client, address string, format FormatType, query string, limit uint64, from, until int64) (string, []string, time.Duration, http.Header, error) {
+	tagsQuery, err := NewTagsNames(address, format, query, limit, from, until)
+	if err != nil {
+		return tagsQuery.QueryParams(), nil, 0, nil, err
+	} else {
+		r, duration, respHeader, err := tagsQuery.Query(client)
+		return tagsQuery.QueryParams(), r, duration, respHeader, err
+	}
 }
 
 // TagsValues do  /tags/autoComplete/values request with query like searchTag[=valuePrefix];tag1=value1;tag2=~value*
 // Valid formats are json
-func TagsValues(client *http.Client, address string, format FormatType, query string, limit uint64, from, until int64) (string, []string, http.Header, error) {
+type TagsValues struct {
+	queryParams string
+	format      FormatType
+	u           *url.URL
+	body        []byte
+}
+
+func NewTagsValues(address string, format FormatType, query string, limit uint64, from, until int64) (t TagsValues, err error) {
 	rTags := "/tags/autoComplete/values"
 
 	if format == FormatDefault {
 		format = FormatJSON
 	}
 
-	var queryParams string
+	t.format = format
 
-	switch format {
-	case FormatJSON:
-		break
-	default:
-		queryParams = fmt.Sprintf("%s?format=%s, from=%d, until=%d, limits=%d, query %s", rTags, format.String(), from, until, limit, query)
-		return queryParams, nil, nil, ErrUnsupportedFormat
+	if format != FormatJSON {
+		t.queryParams = fmt.Sprintf("%s?format=%s, from=%d, until=%d, limits=%d, query %s", rTags, format.String(), from, until, limit, query)
+		err = ErrUnsupportedFormat
+		return
 	}
 
-	u, err := url.Parse(address + rTags)
+	t.u, err = url.Parse(address + rTags)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return
 	}
 
 	var (
@@ -180,14 +215,16 @@ func TagsValues(client *http.Client, address string, format FormatType, query st
 	if query != "" && query != "<>" {
 		args := strings.Split(query, ";")
 		if len(args) < 2 {
-			return queryParams, nil, nil, ErrInvalidQuery
+			err = ErrInvalidQuery
+			return
 		}
 
 		vals := strings.Split(args[0], "=")
 		tag = vals[0]
 
 		if len(vals) > 2 {
-			return queryParams, nil, nil, errors.New("invalid tag: " + args[0])
+			err = errors.New("invalid tag: " + args[0])
+			return
 		} else if len(vals) == 2 {
 			valuePrefix = vals[1]
 		}
@@ -197,7 +234,8 @@ func TagsValues(client *http.Client, address string, format FormatType, query st
 		for i := 1; i < len(args); i++ {
 			expr := args[i]
 			if strings.IndexRune(expr, '=') <= 0 {
-				return queryParams, nil, nil, errors.New("invalid expr: " + expr)
+				err = errors.New("invalid expr: " + expr)
+				return
 			}
 
 			exprs = append(exprs, expr)
@@ -260,39 +298,62 @@ func TagsValues(client *http.Client, address string, format FormatType, query st
 		rawQuery.WriteString(limitStr)
 	}
 
-	queryParams = fmt.Sprintf("%s %q", rTags, v)
+	t.queryParams = fmt.Sprintf("%s %q", rTags, v)
 
-	u.RawQuery = rawQuery.String()
+	t.u.RawQuery = rawQuery.String()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	return
+}
+
+func (t *TagsValues) QueryParams() string {
+	return t.queryParams
+}
+
+func (t *TagsValues) Query(client *http.Client) ([]string, time.Duration, http.Header, error) {
+	var duration time.Duration
+
+	req, err := http.NewRequest(http.MethodGet, t.u.String(), nil)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
+	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		return u.RawQuery, nil, nil, err
+		duration = time.Since(start)
+		return nil, duration, nil, err
 	}
 
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
+	duration = time.Since(start)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		return queryParams, nil, resp.Header, nil
+		return nil, duration, resp.Header, nil
 	} else if resp.StatusCode != http.StatusOK {
-		return queryParams, nil, resp.Header, NewHttpError(resp.StatusCode, string(b))
+		return nil, duration, resp.Header, NewHttpError(resp.StatusCode, string(b))
 	}
 
 	var values []string
 
 	err = json.Unmarshal(b, &values)
 	if err != nil {
-		return queryParams, nil, resp.Header, errors.New(err.Error() + ": " + string(b))
+		return nil, duration, resp.Header, errors.New(err.Error() + ": " + string(b))
 	}
 
-	return queryParams, values, resp.Header, nil
+	return values, duration, resp.Header, nil
+}
+
+func QueryTagsValues(client *http.Client, address string, format FormatType, query string, limit uint64, from, until int64) (string, []string, time.Duration, http.Header, error) {
+	tagsQuery, err := NewTagsValues(address, format, query, limit, from, until)
+	if err != nil {
+		return tagsQuery.QueryParams(), nil, 0, nil, err
+	} else {
+		r, duration, respHeader, err := tagsQuery.Query(client)
+		return tagsQuery.QueryParams(), r, duration, respHeader, err
+	}
 }

@@ -82,7 +82,7 @@ func verifyMetricsFind(ch *Clickhouse, gch *GraphiteClickhouse, check *MetricsFi
 	for _, format := range check.Formats {
 		name := ""
 
-		if url, result, respHeader, err := client.MetricsFind(&httpClient, address, format, check.Query, check.from, check.until); err == nil {
+		if url, result, _, respHeader, err := client.QueryMetricsFind(&httpClient, address, format, check.Query, check.from, check.until); err == nil {
 			id := requestId(respHeader)
 			if check.ErrorRegexp != "" {
 				errors = append(errors, fmt.Sprintf("TRY[%s] %s %s: want error with '%s'", "", id, url, check.ErrorRegexp))
@@ -107,7 +107,7 @@ func verifyMetricsFind(ch *Clickhouse, gch *GraphiteClickhouse, check *MetricsFi
 			if check.CacheTTL > 0 && check.ErrorRegexp == "" {
 				// second query must be find-cached
 				name = "cache"
-				if url, result, respHeader, err = client.MetricsFind(&httpClient, address, format, check.Query, check.from, check.until); err == nil {
+				if url, result, _, respHeader, err = client.QueryMetricsFind(&httpClient, address, format, check.Query, check.from, check.until); err == nil {
 					compareFindMatch(&errors, name, url, result, check.Result, true, check.CacheTTL, respHeader)
 				} else {
 					errStr := strings.TrimRight(err.Error(), "\n")
@@ -174,9 +174,9 @@ func verifyTags(ch *Clickhouse, gch *GraphiteClickhouse, check *TagsCheck) []str
 		name := ""
 
 		if check.Names {
-			url, result, respHeader, err = client.TagsNames(&httpClient, address, format, check.Query, check.Limits, check.from, check.until)
+			url, result, _, respHeader, err = client.QueryTagsNames(&httpClient, address, format, check.Query, check.Limits, check.from, check.until)
 		} else {
-			url, result, respHeader, err = client.TagsValues(&httpClient, address, format, check.Query, check.Limits, check.from, check.until)
+			url, result, _, respHeader, err = client.QueryTagsValues(&httpClient, address, format, check.Query, check.Limits, check.from, check.until)
 		}
 
 		if err == nil {
@@ -206,9 +206,9 @@ func verifyTags(ch *Clickhouse, gch *GraphiteClickhouse, check *TagsCheck) []str
 				name = "cache"
 
 				if check.Names {
-					url, result, respHeader, err = client.TagsNames(&httpClient, address, format, check.Query, check.Limits, check.from, check.until)
+					url, result, _, respHeader, err = client.QueryTagsNames(&httpClient, address, format, check.Query, check.Limits, check.from, check.until)
 				} else {
-					url, result, respHeader, err = client.TagsValues(&httpClient, address, format, check.Query, check.Limits, check.from, check.until)
+					url, result, _, respHeader, err = client.QueryTagsValues(&httpClient, address, format, check.Query, check.Limits, check.from, check.until)
 				}
 
 				if err == nil {
@@ -357,7 +357,7 @@ func verifyRender(ch *Clickhouse, gch *GraphiteClickhouse, check *RenderCheck, d
 			}
 		}
 
-		if url, result, respHeader, err := client.Render(&httpClient, address, format, check.Targets, filteringFunctions, check.MaxDataPoints, from, until); err == nil {
+		if url, result, _, respHeader, err := client.QueryRender(&httpClient, address, format, check.Targets, filteringFunctions, check.MaxDataPoints, from, until); err == nil {
 			id := requestId(respHeader)
 			name := ""
 
@@ -384,7 +384,7 @@ func verifyRender(ch *Clickhouse, gch *GraphiteClickhouse, check *RenderCheck, d
 			if check.CacheTTL > 0 && check.ErrorRegexp == "" {
 				// second query must be find-cached
 				name = "cache"
-				if url, result, respHeader, err = client.Render(&httpClient, address, format, check.Targets, filteringFunctions, check.MaxDataPoints, from, until); err == nil {
+				if url, result, _, respHeader, err = client.QueryRender(&httpClient, address, format, check.Targets, filteringFunctions, check.MaxDataPoints, from, until); err == nil {
 					compareRender(&errors, name, url, result, check.result, true, respHeader, check.CacheTTL)
 				} else {
 					errStr := strings.TrimRight(err.Error(), "\n")

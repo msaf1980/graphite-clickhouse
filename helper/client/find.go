@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"time"
 
 	protov2 "github.com/go-graphite/protocol/carbonapi_v2_pb"
 	protov3 "github.com/go-graphite/protocol/carbonapi_v3_pb"
@@ -20,31 +22,34 @@ type FindMatch struct {
 
 // MetricsFind do /metrics/find/ request
 // Valid formats are carbonapi_v3_pb. protobuf, pickle
-func MetricsFind(client *http.Client, address string, format FormatType, query string, from, until int64) (string, []FindMatch, http.Header, error) {
+type MetricsFind struct {
+	queryParams string
+	format      FormatType
+	u           *url.URL
+	body        []byte
+}
+
+func NewMetricsFind(address string, format FormatType, query string, from, until int64) (m MetricsFind, err error) {
 	if format == FormatDefault {
 		format = FormatPb_v3
 	}
 
 	rUrl := "/metrics/find/"
 
-	queryParams := fmt.Sprintf("%s?format=%s, from=%d, until=%d, query %s", rUrl, format.String(), from, until, query)
+	m.format = format
+	m.queryParams = fmt.Sprintf("%s?format=%s, from=%d, until=%d, query %s", rUrl, format.String(), from, until, query)
 
-	var fromStr, untilStr string
-
-	u, err := url.Parse(address + rUrl)
+	m.u, err = url.Parse(address + rUrl)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return
 	}
 
 	v := url.Values{
 		"format": []string{format.String()},
 	}
 
-	var reader io.Reader
-
 	switch format {
 	case FormatPb_v3:
-		var body []byte
 
 		r := protov3.MultiGlobRequest{
 			Metrics:   []string{query},
@@ -52,59 +57,75 @@ func MetricsFind(client *http.Client, address string, format FormatType, query s
 			StopTime:  until,
 		}
 
-		body, err = r.Marshal()
+		m.body, err = r.Marshal()
 		if err != nil {
-			return query, nil, nil, err
+			return
 		}
 
-		if body != nil {
-			reader = bytes.NewReader(body)
-		}
 	case FormatProtobuf, FormatPickle:
 		v["query"] = []string{query}
 		if from > 0 {
-			v["from"] = []string{fromStr}
+			v["from"] = []string{strconv.FormatInt(from, 10)}
 		}
 
 		if until > 0 {
-			v["until"] = []string{untilStr}
+			v["until"] = []string{strconv.FormatInt(until, 10)}
 		}
 	default:
-		return queryParams, nil, nil, ErrUnsupportedFormat
+		err = ErrUnsupportedFormat
+		return
 	}
 
-	u.RawQuery = v.Encode()
+	m.u.RawQuery = v.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), reader)
+	return
+}
+
+func (m *MetricsFind) QueryParams() string {
+	return m.queryParams
+}
+
+func (m *MetricsFind) Query(client *http.Client) ([]FindMatch, time.Duration, http.Header, error) {
+
+	var reader io.Reader
+	var duration time.Duration
+
+	if m.body != nil {
+		reader = bytes.NewReader(m.body)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, m.u.String(), reader)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
+	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
+	duration = time.Since(start)
 	if err != nil {
-		return queryParams, nil, nil, err
+		return nil, duration, nil, err
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		return queryParams, nil, resp.Header, nil
+		return nil, duration, resp.Header, nil
 	} else if resp.StatusCode != http.StatusOK {
-		return queryParams, nil, resp.Header, NewHttpError(resp.StatusCode, string(b))
+		return nil, duration, resp.Header, NewHttpError(resp.StatusCode, string(b))
 	}
 
 	var globs []FindMatch
 
-	switch format {
+	switch m.format {
 	case FormatProtobuf:
 		var globsv2 protov2.GlobResponse
 		if err = globsv2.Unmarshal(b); err != nil {
-			return queryParams, nil, resp.Header, err
+			return nil, duration, resp.Header, err
 		}
 
 		for _, m := range globsv2.Matches {
@@ -113,7 +134,7 @@ func MetricsFind(client *http.Client, address string, format FormatType, query s
 	case FormatPb_v3:
 		var globsv3 protov3.MultiGlobResponse
 		if err = globsv3.Unmarshal(b); err != nil {
-			return queryParams, nil, resp.Header, err
+			return nil, duration, resp.Header, err
 		}
 
 		for _, m := range globsv3.Metrics {
@@ -127,7 +148,7 @@ func MetricsFind(client *http.Client, address string, format FormatType, query s
 
 		p, err := decoder.Decode()
 		if err != nil {
-			return queryParams, nil, resp.Header, err
+			return nil, duration, resp.Header, err
 		}
 
 		for _, v := range p.([]interface{}) {
@@ -137,8 +158,18 @@ func MetricsFind(client *http.Client, address string, format FormatType, query s
 			globs = append(globs, FindMatch{Path: path, IsLeaf: isLeaf})
 		}
 	default:
-		return queryParams, nil, resp.Header, ErrUnsupportedFormat
+		return nil, duration, resp.Header, ErrUnsupportedFormat
 	}
 
-	return queryParams, globs, resp.Header, nil
+	return globs, duration, resp.Header, nil
+}
+
+func QueryMetricsFind(client *http.Client, address string, format FormatType, query string, from, until int64) (string, []FindMatch, time.Duration, http.Header, error) {
+	metricQuery, err := NewMetricsFind(address, format, query, from, until)
+	if err != nil {
+		return metricQuery.QueryParams(), nil, 0, nil, err
+	} else {
+		r, duration, respHeader, err := metricQuery.Query(client)
+		return metricQuery.QueryParams(), r, duration, respHeader, err
+	}
 }

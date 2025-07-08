@@ -121,7 +121,7 @@ func (c *GraphiteClickhouse) Alive() bool {
 		return false
 	}
 
-	_, _, _, err := client.MetricsFind(http.DefaultClient, "http://"+c.address+"/alive", client.FormatDefault, "NonExistentTarget", 0, 0)
+	_, _, _, _, err := client.QueryMetricsFind(http.DefaultClient, "http://"+c.address+"/alive", client.FormatDefault, "NonExistentTarget", 0, 0)
 
 	return err == nil
 }
