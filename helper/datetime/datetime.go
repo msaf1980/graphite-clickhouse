@@ -51,14 +51,15 @@ func DateParamToEpoch(s string, tz *time.Location, now time.Time, truncate time.
 	}
 
 	// relative timestamp
-	if s[0] == '-' {
+	switch s[0] {
+	case '-':
 		offset, err := parser.IntervalString(s, -1)
 		if err != nil {
 			return 0
 		}
 
 		return now.Add(time.Duration(offset) * time.Second).Unix()
-	} else if s[0] == '+' {
+	case '+':
 		offset, err := parser.IntervalString(s, 1)
 		if err != nil {
 			return 0
